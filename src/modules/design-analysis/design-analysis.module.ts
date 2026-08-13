@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
-import { DesignsModule } from '../designs/designs.module';
-import { DesignAnalysisService } from './design-analysis.service';
+import { DesignAnalyzerModule } from '../design-analyzer/design-analyzer.module';
 
 @Module({
-  imports: [DesignsModule],
-  providers: [DesignAnalysisService],
-  exports: [DesignAnalysisService],
+  imports: [DesignAnalyzerModule],
+  exports: [DesignAnalyzerModule],
 })
 export class DesignAnalysisModule {}

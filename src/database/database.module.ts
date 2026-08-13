@@ -1,16 +1,16 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { SequelizeModule } from '@nestjs/sequelize';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from '../modules/users/entities/user.entity';
 import { Design } from '../modules/designs/entities/design.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forRootAsync({
+    SequelizeModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
+        dialect: 'postgres',
         host: configService.get<string>('database.host', 'localhost'),
         port: configService.get<number>('database.port', 5432),
         username: configService.get<string>('database.username', 'postgres'),
@@ -19,10 +19,9 @@ import { Design } from '../modules/designs/entities/design.entity';
           'database.name',
           'website_of_websites',
         ),
-        schema: configService.get<string>('database.schema', 'public'),
-        entities: [User, Design],
-        synchronize: configService.get<string>('NODE_ENV') === 'development',
-        autoLoadEntities: true,
+        models: [User, Design],
+        autoLoadModels: true,
+        synchronize: false,
       }),
     }),
   ],

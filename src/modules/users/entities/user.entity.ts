@@ -1,30 +1,67 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  Table,
   Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
+  Model,
+  DataType,
+  HasMany,
+  CreatedAt,
+  UpdatedAt,
+} from 'sequelize-typescript';
 import { Design } from '../../designs/entities/design.entity';
 
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+export interface UserAttributes {
+  id?: string;
+  email: string;
+  password_hash: string;
+  created_at?: Date;
+  updated_at?: Date;
+}
 
-  @Column({ unique: true })
-  email!: string;
+export type UserCreationAttributes = UserAttributes;
 
-  @Column({ name: 'password_hash' })
-  password_hash!: string;
+@Table({
+  tableName: 'users',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+})
+export class User extends Model<UserAttributes, UserCreationAttributes> {
+  @Column({
+    type: DataType.UUID,
+    defaultValue: DataType.UUIDV4,
+    primaryKey: true,
+    allowNull: false,
+  })
+  declare id: string;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
-  created_at!: Date;
+  @Column({
+    type: DataType.STRING,
+    allowNull: false,
+    unique: true,
+  })
+  declare email: string;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp with time zone' })
-  updated_at!: Date;
+  @Column({
+    type: DataType.STRING,
+    allowNull: false,
+    field: 'password_hash',
+  })
+  declare password_hash: string;
 
-  @OneToMany(() => Design, (design) => design.user)
-  designs!: Design[];
+  @CreatedAt
+  @Column({
+    type: DataType.DATE,
+    field: 'created_at',
+  })
+  declare created_at: Date;
+
+  @UpdatedAt
+  @Column({
+    type: DataType.DATE,
+    field: 'updated_at',
+  })
+  declare updated_at: Date;
+
+  @HasMany(() => Design, { onDelete: 'CASCADE' })
+  declare designs: Design[];
 }
