@@ -22,7 +22,7 @@ export class GeminiDesignAnalyzer implements DesignAnalyzer {
     const modelName =
       this.configService.get<string>('gemini.model') ||
       process.env.GEMINI_MODEL ||
-      'gemini-3-flash-preview';
+      'gemini-2.5-flash';
 
     if (!apiKey) {
       throw new InternalServerErrorException(
@@ -39,10 +39,20 @@ ${DESIGN_ANALYZER_SYSTEM_PROMPT}
 PROCESSED DESIGN STRUCTURE INPUT:
 Design ID: ${input.representation.designId}
 Summary: ${JSON.stringify(input.representation.summary, null, 2)}
-File Inventory (Parsed Metadata):
+File Inventory (Parsed Metadata & Extracted Text Nodes):
 ${JSON.stringify(input.representation.fileInventory, null, 2)}
 
-Please perform hybrid analysis and return the structured JSON layout and placeholders.
+INSTRUCTIONS FOR DETAILED STRUCTURAL EXTRACTION:
+1. Examine all extracted text nodes and visual coordinates in the file inventory above.
+2. Ensure you detect:
+   - Logo / Brand at top left as a placeholder ("logo")
+   - All navigation items in the header as individual "link" placeholders ("nav_link_1", "nav_link_2", ...)
+   - Header action items / social links on right as "link" or "button" placeholders
+   - Hero section headings, sub-headings, and body paragraphs as distinct "text" placeholders
+   - All hero call-to-action buttons as distinct "button" placeholders ("cta_button_1", "cta_button_2")
+   - Background images / visual mesh graphics as "image" placeholders
+   - Section color palettes (background_color, text_color, primary_color, secondary_color)
+3. Return the structured JSON matching the JSON schema.
 `;
 
     try {
@@ -76,6 +86,15 @@ Please perform hybrid analysis and return the structured JSON layout and placeho
                             height: { type: Type.NUMBER },
                           },
                           required: ['x', 'y', 'width', 'height'],
+                        },
+                        styles: {
+                          type: Type.OBJECT,
+                          properties: {
+                            background_color: { type: Type.STRING },
+                            text_color: { type: Type.STRING },
+                            primary_color: { type: Type.STRING },
+                            secondary_color: { type: Type.STRING },
+                          },
                         },
                       },
                       required: ['id', 'type', 'bounds'],

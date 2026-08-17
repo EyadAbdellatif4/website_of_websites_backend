@@ -11,6 +11,15 @@ export interface SvgElementCounts {
   lines: number;
 }
 
+export interface ExtractedSvgText {
+  text: string;
+  x?: number;
+  y?: number;
+  fontSize?: number;
+  fill?: string;
+  id?: string;
+}
+
 export interface SvgInspectionMetadata {
   width: string | number | null;
   height: string | number | null;
@@ -18,6 +27,9 @@ export interface SvgInspectionMetadata {
   isSafe: boolean;
   securityWarnings: string[];
   elements: SvgElementCounts;
+  extractedTexts?: ExtractedSvgText[];
+  colorPalette?: string[];
+  hasGradients?: boolean;
 }
 
 const DANGEROUS_CONSTRUCT_PATTERNS = [
@@ -72,10 +84,67 @@ export class SvgInspector {
       lines: 0,
     };
 
+    const extractedTexts: ExtractedSvgText[] = [];
+    const colorsFound = new Set<string>();
+    let hasGradients = false;
+
+    // Regex extraction fallback for text & colors (handles deeply nested tspan, defs, and text tags)
+    try {
+      const textRegex = /<text\b([^>]*)>([\s\S]*?)<\/text>/gi;
+      let textMatch: RegExpExecArray | null;
+
+      while ((textMatch = textRegex.exec(svgContent)) !== null) {
+        const attrsStr = textMatch[1] || '';
+        const innerContent = textMatch[2] || '';
+
+        // Clean out any nested tags like <tspan> but preserve text
+        const cleanText = innerContent
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (cleanText.length > 0) {
+          const xMatch = attrsStr.match(/\bx=["']?([\d.-]+)/i);
+          const yMatch = attrsStr.match(/\by=["']?([\d.-]+)/i);
+          const fontMatch = attrsStr.match(/\bfont-size=["']?([\d.-]+)/i);
+          const fillMatch = attrsStr.match(/\bfill=["']?([^"'\s>]+)/i);
+          const idMatch = attrsStr.match(/\bid=["']?([^"'\s>]+)/i);
+
+          extractedTexts.push({
+            text: cleanText,
+            x: xMatch ? parseFloat(xMatch[1]) : undefined,
+            y: yMatch ? parseFloat(yMatch[1]) : undefined,
+            fontSize: fontMatch ? parseFloat(fontMatch[1]) : undefined,
+            fill: fillMatch ? fillMatch[1] : undefined,
+            id: idMatch ? idMatch[1] : undefined,
+          });
+        }
+      }
+
+      // Detect colors (hex & rgb)
+      const colorRegex = /(#[0-9a-fA-F]{3,8}|rgb\([^)]+\)|rgba\([^)]+\))/gi;
+      let colorMatch: RegExpExecArray | null;
+      while ((colorMatch = colorRegex.exec(svgContent)) !== null) {
+        if (colorsFound.size < 20) {
+          colorsFound.add(colorMatch[1]);
+        }
+      }
+
+      if (
+        svgContent.includes('<linearGradient') ||
+        svgContent.includes('<radialGradient')
+      ) {
+        hasGradients = true;
+      }
+    } catch {
+      // ignore
+    }
+
     try {
       const parsed = this.parser.parse(svgContent) as Record<string, unknown>;
       const svgNode = (parsed.svg || parsed.SVG) as
-        Record<string, unknown> | undefined;
+        | Record<string, unknown>
+        | undefined;
 
       if (svgNode) {
         width = (svgNode['@_width'] as string | number) ?? null;
@@ -98,6 +167,9 @@ export class SvgInspector {
       isSafe,
       securityWarnings: warnings,
       elements: counts,
+      extractedTexts: extractedTexts.slice(0, 50),
+      colorPalette: Array.from(colorsFound),
+      hasGradients,
     };
   }
 

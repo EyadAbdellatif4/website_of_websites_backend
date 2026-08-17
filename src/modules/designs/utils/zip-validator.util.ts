@@ -23,7 +23,7 @@ const DISALLOWED_EXTENSIONS = [
 
 export function validateZipFile(file: Express.Multer.File): void {
   if (!file || !file.buffer || file.buffer.length === 0) {
-    throw new BadRequestException('ZIP file is required and cannot be empty');
+    throw new BadRequestException('Design file is required and cannot be empty');
   }
 
   const originalNameLower = (file.originalname ?? '').toLowerCase();
@@ -37,26 +37,43 @@ export function validateZipFile(file: Express.Multer.File): void {
     }
   }
 
-  if (!originalNameLower.endsWith('.zip')) {
+  const isSvg =
+    originalNameLower.endsWith('.svg') ||
+    file.mimetype === 'image/svg+xml' ||
+    file.buffer.slice(0, 100).toString('utf-8').includes('<svg');
+
+  const isZip = originalNameLower.endsWith('.zip');
+
+  if (!isZip && !isSvg) {
     throw new BadRequestException(
-      'Only valid ZIP archives ending with .zip are allowed',
+      'Only valid ZIP archives (.zip) or SVG files (.svg) are allowed',
     );
   }
 
-  // Check magic bytes
-  if (file.buffer.length < 4) {
-    throw new BadRequestException(
-      'File is too small to be a valid ZIP archive',
-    );
-  }
+  if (isZip) {
+    // Check magic bytes for ZIP
+    if (file.buffer.length < 4) {
+      throw new BadRequestException(
+        'File is too small to be a valid ZIP archive',
+      );
+    }
 
-  const isZipMagic = ZIP_HEADER_MAGIC.some((magic) =>
-    magic.every((byte, index) => file.buffer[index] === byte),
-  );
-
-  if (!isZipMagic) {
-    throw new BadRequestException(
-      'File content validation failed: Not a valid ZIP archive signature',
+    const isZipMagic = ZIP_HEADER_MAGIC.some((magic) =>
+      magic.every((byte, index) => file.buffer[index] === byte),
     );
+
+    if (!isZipMagic) {
+      throw new BadRequestException(
+        'File content validation failed: Not a valid ZIP archive signature',
+      );
+    }
+  } else if (isSvg) {
+    // Validate SVG header
+    const content = file.buffer.toString('utf-8');
+    if (!content.includes('<svg') && !content.includes('<?xml')) {
+      throw new BadRequestException(
+        'File content validation failed: Not a valid SVG markup document',
+      );
+    }
   }
 }

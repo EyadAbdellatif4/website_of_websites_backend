@@ -10,7 +10,11 @@ import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
 import { FileStorage } from '../file-storage/file-storage.interface';
 import { DesignsService } from '../designs/designs.service';
 import { DesignStatus } from '../designs/entities/design.entity';
-import { ZipProcessor, ZipProcessingLimits } from './processors/zip.processor';
+import {
+  ZipProcessor,
+  ZipProcessingLimits,
+  ExtractedZipEntry,
+} from './processors/zip.processor';
 import {
   SvgInspector,
   SvgInspectionMetadata,
@@ -106,12 +110,29 @@ export class DesignProcessingService {
 
       const canonicalExtractedDirKey = `designs/${userId}/${designId}/extracted`;
 
-      // Safely extract ZIP entries in memory
-      const entries = this.zipProcessor.process(
-        buffer,
-        canonicalExtractedDirKey,
-        limits,
-      );
+      const isDirectSvg =
+        design.file_name.toLowerCase().endsWith('.svg') ||
+        buffer.slice(0, 100).toString('utf-8').includes('<svg');
+
+      let entries: ExtractedZipEntry[] = [];
+
+      if (isDirectSvg) {
+        entries = [
+          {
+            entryPath: 'design.svg',
+            buffer,
+            size: buffer.length,
+            type: 'svg',
+          },
+        ];
+      } else {
+        // Safely extract ZIP entries in memory
+        entries = this.zipProcessor.process(
+          buffer,
+          canonicalExtractedDirKey,
+          limits,
+        );
+      }
 
       const fileInventory: NormalizedFileEntry[] = [];
       let svgCount = 0;

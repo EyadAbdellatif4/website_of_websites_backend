@@ -7,11 +7,21 @@ export const BoundsSchema = z.object({
   height: z.number(),
 });
 
+export const SectionStylesSchema = z
+  .object({
+    background_color: z.string().optional(),
+    text_color: z.string().optional(),
+    primary_color: z.string().optional(),
+    secondary_color: z.string().optional(),
+  })
+  .optional();
+
 export const LayoutSectionSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1),
   order: z.number().int().optional(),
   bounds: BoundsSchema,
+  styles: SectionStylesSchema,
 });
 
 export const LayoutDataSchema = z.object({
