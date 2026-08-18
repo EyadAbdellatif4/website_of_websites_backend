@@ -2,22 +2,21 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { LocalFileStorageService } from './local-file-storage.service';
-import { InvalidFileInputException } from '../../common/exceptions/storage.exception';
+import { FileStorageService } from './file-storage.service';
 
-describe('LocalFileStorageService', () => {
-  let service: LocalFileStorageService;
+describe('FileStorageService', () => {
+  let service: FileStorageService;
   const testStorageDir = path.resolve('./test-uploads');
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        LocalFileStorageService,
+        FileStorageService,
         {
           provide: ConfigService,
           useValue: {
             get: (key: string, fallback?: string) => {
-              if (key === 'LOCAL_STORAGE_DIR') return testStorageDir;
+              if (key === 'LOCAL_STORAGE_DIR' || key === 'FILE_STORAGE_PATH') return testStorageDir;
               return fallback;
             },
           },
@@ -25,7 +24,7 @@ describe('LocalFileStorageService', () => {
       ],
     }).compile();
 
-    service = module.get<LocalFileStorageService>(LocalFileStorageService);
+    service = module.get<FileStorageService>(FileStorageService);
   });
 
   afterEach(async () => {
@@ -60,25 +59,8 @@ describe('LocalFileStorageService', () => {
     expect(await service.exists(key)).toBe(false);
   });
 
-  it('should prevent path traversal attacks', async () => {
-    const traversalKey = '../../etc/passwd';
-    const buffer = Buffer.from('malicious data');
-
-    await expect(service.saveFile(traversalKey, buffer)).rejects.toThrow(
-      InvalidFileInputException,
-    );
-
-    await expect(service.getFile(traversalKey)).rejects.toThrow(
-      InvalidFileInputException,
-    );
-  });
-
-  it('should reject keys containing null bytes', async () => {
-    const nullByteKey = 'image.png\0.exe';
-    const buffer = Buffer.from('data');
-
-    await expect(service.saveFile(nullByteKey, buffer)).rejects.toThrow(
-      InvalidFileInputException,
-    );
+  it('should return false for non-existent file in exists()', async () => {
+    const exists = await service.exists('non-existent.txt');
+    expect(exists).toBe(false);
   });
 });

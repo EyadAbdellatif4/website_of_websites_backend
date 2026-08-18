@@ -1,34 +1,22 @@
 import {
   Controller,
-  Post,
   Get,
   Delete,
   Param,
-  Body,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
   Res,
   HttpCode,
   HttpStatus,
-  BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiConsumes,
-  ApiBody,
   ApiCookieAuth,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { DesignsService, SafeDesignDto } from './designs.service';
-import {
-  UploadDesignDto,
-  UploadDesignWithFileDto,
-} from './dto/upload-design.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -40,27 +28,6 @@ import { User } from '../users/entities/user.entity';
 @UseGuards(JwtAuthGuard)
 export class DesignsController {
   constructor(private readonly designsService: DesignsService) {}
-
-  @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a design file (ZIP or SVG)' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: UploadDesignWithFileDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Design file uploaded and stored successfully',
-  })
-  @ApiResponse({ status: 400, description: 'Invalid file or parameters' })
-  async uploadDesign(
-    @CurrentUser() user: User,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() dto: UploadDesignDto,
-  ): Promise<SafeDesignDto> {
-    if (!file) {
-      throw new BadRequestException('Design file is required');
-    }
-    return this.designsService.uploadDesign(user, file, dto.name);
-  }
 
   @Get()
   @ApiOperation({ summary: 'Retrieve all designs uploaded by current user' })

@@ -16,10 +16,10 @@ import { JwtStrategy } from './jwt.strategy';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const expiresIn = configService.get<string>('jwt.expiresIn') ?? '1d';
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN') ?? '1d';
         return {
           secret: configService.get<string>(
-            'jwt.secret',
+            'JWT_SECRET',
             'super-secret-jwt-key-for-dev',
           ),
           signOptions: {

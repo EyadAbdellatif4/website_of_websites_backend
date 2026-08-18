@@ -17,11 +17,10 @@ import { AssetBundlerService } from '../website-generator/services/asset-bundler
 import { DesignsService } from '../designs/designs.service';
 import { Design, DesignStatus } from '../designs/entities/design.entity';
 import { User } from '../users/entities/user.entity';
-import { LocalFileStorageService } from '../file-storage/local-file-storage.service';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import envConfig from '../../config/env.config';
+import { FileStorageService } from '../file-storage/file-storage.service';
+import { DesignProcessingService } from '../design-processing/design-processing.service';
 
-describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
+describe('WebsitePreviewService (Isolated Preview Sandboxing Tests)', () => {
   let sequelize: Sequelize;
   let previewService: WebsitePreviewService;
   let generatorService: WebsiteGeneratorService;
@@ -29,6 +28,7 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
   let portManager: PortManagerService;
   let previewManager: LocalPreviewManagerService;
   let designsService: DesignsService;
+  let processingService: DesignProcessingService;
   let testUserA: User;
   let testUserB: User;
   let sampleDesign: Design;
@@ -61,7 +61,6 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [envConfig],
         }),
       ],
       providers: [
@@ -77,10 +76,8 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
         TemplateRendererService,
         AssetBundlerService,
         DesignsService,
-        {
-          provide: FILE_STORAGE_SERVICE,
-          useClass: LocalFileStorageService,
-        },
+        DesignProcessingService,
+        FileStorageService,
         {
           provide: 'DesignRepository',
           useValue: Design,
@@ -102,6 +99,7 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
       LocalPreviewManagerService,
     );
     designsService = moduleRef.get<DesignsService>(DesignsService);
+    processingService = moduleRef.get<DesignProcessingService>(DesignProcessingService);
   });
 
   afterAll(async () => {
@@ -139,7 +137,7 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
       size: zipBuffer.length,
     } as unknown as Express.Multer.File;
 
-    const safeDto = await designsService.uploadDesign(
+    const safeDto = await processingService.upload(
       testUserA,
       mockFile,
       'Seaside Boutique Villa',
@@ -321,7 +319,7 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
         size: zipBuffer.length,
       } as unknown as Express.Multer.File;
 
-      const design2Dto = await designsService.uploadDesign(
+      const design2Dto = await processingService.upload(
         testUserA,
         mockFile,
         'Design Two',
@@ -336,7 +334,7 @@ describe('WebsitePreviewService (Preview Engine & Validation Tests)', () => {
       await design2.save();
 
       // Create third design for User A
-      const design3Dto = await designsService.uploadDesign(
+      const design3Dto = await processingService.upload(
         testUserA,
         mockFile,
         'Design Three',

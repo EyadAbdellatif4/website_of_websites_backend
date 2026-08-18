@@ -16,14 +16,12 @@ import { DesignsService } from '../designs/designs.service';
 import { DesignProcessingService } from '../design-processing/design-processing.service';
 import { Design, DesignStatus } from '../designs/entities/design.entity';
 import { User } from '../users/entities/user.entity';
-import { LocalFileStorageService } from '../file-storage/local-file-storage.service';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import envConfig from '../../config/env.config';
-
+import { FileStorageService } from '../file-storage/file-storage.service';
 describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', () => {
   let sequelize: Sequelize;
   let analysisService: DesignAnalysisService;
   let designsService: DesignsService;
+  let processingService: DesignProcessingService;
   let mockAnalyzer: MockDesignAnalyzer;
   let testUserA: User;
   let testUserB: User;
@@ -56,7 +54,6 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [envConfig],
         }),
       ],
       providers: [
@@ -67,10 +64,7 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
           provide: DESIGN_ANALYZER_PROVIDER,
           useValue: mockAnalyzer,
         },
-        {
-          provide: FILE_STORAGE_SERVICE,
-          useClass: LocalFileStorageService,
-        },
+        FileStorageService,
         {
           provide: 'DesignRepository',
           useValue: Design,
@@ -82,6 +76,7 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
       DesignAnalysisService,
     );
     designsService = moduleRef.get<DesignsService>(DesignsService);
+    processingService = moduleRef.get<DesignProcessingService>(DesignProcessingService);
   });
 
   afterAll(async () => {
@@ -123,7 +118,7 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
         size: zipBuffer.length,
       } as unknown as Express.Multer.File;
 
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockFile,
         'Landing Page Design',
@@ -167,7 +162,7 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
         size: zipBuffer.length,
       } as unknown as Express.Multer.File;
 
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockFile,
         'User A Design',
@@ -191,7 +186,7 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
         size: zipBuffer.length,
       } as unknown as Express.Multer.File;
 
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockFile,
         'Preservation Test Design',
@@ -234,7 +229,7 @@ describe('DesignAnalysisModule (Mocked AI Provider & Schema Validation Tests)', 
         size: zipBuffer.length,
       } as unknown as Express.Multer.File;
 
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockFile,
         'Failed Status Design',

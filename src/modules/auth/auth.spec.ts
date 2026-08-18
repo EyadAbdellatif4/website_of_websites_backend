@@ -9,7 +9,6 @@ import { JwtStrategy } from './jwt.strategy';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { Design, DesignStatus } from '../designs/entities/design.entity';
-import envConfig from '../../config/env.config';
 
 describe('AuthModule (Unit & Integration Tests)', () => {
   let sequelize: Sequelize;
@@ -32,7 +31,6 @@ describe('AuthModule (Unit & Integration Tests)', () => {
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [envConfig],
         }),
         JwtModule.register({
           secret: 'test-jwt-secret-key-12345',

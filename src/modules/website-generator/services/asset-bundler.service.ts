@@ -1,14 +1,12 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as path from 'path';
-import { FILE_STORAGE_SERVICE } from '../../file-storage/storage.constants';
-import { FileStorage } from '../../file-storage/file-storage.interface';
+import { FileStorageService } from '../../file-storage/file-storage.service';
 import { CopiedAsset, RenderedFile } from '../interfaces/generator.interface';
 
 @Injectable()
 export class AssetBundlerService {
   constructor(
-    @Inject(FILE_STORAGE_SERVICE)
-    private readonly fileStorage: FileStorage,
+    private readonly fileStorage: FileStorageService,
   ) {}
 
   /**

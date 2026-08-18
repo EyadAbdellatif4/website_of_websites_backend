@@ -11,15 +11,15 @@ import { AssetBundlerService } from './services/asset-bundler.service';
 import { DesignsService } from '../designs/designs.service';
 import { Design, DesignStatus } from '../designs/entities/design.entity';
 import { User } from '../users/entities/user.entity';
-import { LocalFileStorageService } from '../file-storage/local-file-storage.service';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import envConfig from '../../config/env.config';
+import { FileStorageService } from '../file-storage/file-storage.service';
+import { DesignProcessingService } from '../design-processing/design-processing.service';
 
 describe('WebsiteGeneratorService (Full Generation Engine Tests)', () => {
   let sequelize: Sequelize;
   let generatorService: WebsiteGeneratorService;
   let designsService: DesignsService;
-  let fileStorage: LocalFileStorageService;
+  let processingService: DesignProcessingService;
+  let fileStorage: FileStorageService;
   let testUserA: User;
   let testUserB: User;
   let sampleDesign: Design;
@@ -54,7 +54,6 @@ describe('WebsiteGeneratorService (Full Generation Engine Tests)', () => {
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [envConfig],
         }),
       ],
       providers: [
@@ -62,10 +61,8 @@ describe('WebsiteGeneratorService (Full Generation Engine Tests)', () => {
         TemplateRendererService,
         AssetBundlerService,
         DesignsService,
-        {
-          provide: FILE_STORAGE_SERVICE,
-          useClass: LocalFileStorageService,
-        },
+        DesignProcessingService,
+        FileStorageService,
         {
           provide: 'DesignRepository',
           useValue: Design,
@@ -77,7 +74,8 @@ describe('WebsiteGeneratorService (Full Generation Engine Tests)', () => {
       WebsiteGeneratorService,
     );
     designsService = moduleRef.get<DesignsService>(DesignsService);
-    fileStorage = moduleRef.get<LocalFileStorageService>(FILE_STORAGE_SERVICE);
+    processingService = moduleRef.get<DesignProcessingService>(DesignProcessingService);
+    fileStorage = moduleRef.get<FileStorageService>(FileStorageService);
   });
 
   afterAll(async () => {
@@ -113,7 +111,7 @@ describe('WebsiteGeneratorService (Full Generation Engine Tests)', () => {
       size: zipBuffer.length,
     } as unknown as Express.Multer.File;
 
-    const safeDto = await designsService.uploadDesign(
+    const safeDto = await processingService.upload(
       testUserA,
       mockFile,
       'Grand Hotel Luxury Website',
