@@ -20,14 +20,14 @@ import { User } from '../users/entities/user.entity';
 import {
   DesignAnalysisService,
   AnalysisResponseDto,
-} from '../design-analyzer/design-analysis.service';
+} from './design-analysis.service';
 
 @ApiTags('Design AI Analyzer')
 @ApiCookieAuth('access_token')
 @ApiBearerAuth()
 @Controller('designs')
 @UseGuards(JwtAuthGuard)
-export class DesignsAnalysisController {
+export class DesignAnalyzerController {
   constructor(private readonly designAnalysisService: DesignAnalysisService) {}
 
   @Post(':id/analyze')

@@ -12,7 +12,6 @@ import {
   Res,
   HttpCode,
   HttpStatus,
-  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -25,25 +24,23 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import {
+  PlaceholdersService,
+  StoredPlaceholderItem,
+} from './placeholders.service';
+import { UpdatePlaceholderValueDto } from './dto/update-placeholder.dto';
+import { UpdateSectionStyleDto } from './dto/update-section-style.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
-import {
-  DesignPlaceholdersService,
-  StoredPlaceholderItem,
-} from './design-placeholders.service';
-import { UpdatePlaceholderValueDto } from './dto/update-placeholder.dto';
-import { UpdateSectionStyleDto } from './dto/update-section-style.dto';
 
-@ApiTags('Design Placeholders & Content Editor')
+@ApiTags('Design Placeholders & Content Management')
 @ApiCookieAuth('access_token')
 @ApiBearerAuth()
 @Controller('designs')
 @UseGuards(JwtAuthGuard)
-export class DesignsPlaceholdersController {
-  constructor(
-    private readonly placeholdersService: DesignPlaceholdersService,
-  ) {}
+export class PlaceholdersController {
+  constructor(private readonly placeholdersService: PlaceholdersService) {}
 
   @Get(':id/placeholders')
   @ApiOperation({
@@ -89,36 +86,36 @@ export class DesignsPlaceholdersController {
 
   @Post(':id/placeholders/:placeholderId/image')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({
-    summary: 'Upload user content image for an image placeholder',
-  })
+  @ApiOperation({ summary: 'Upload replacement image for an image placeholder' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        file: { type: 'string', format: 'binary' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Image file (JPG, PNG, WEBP, GIF, SVG up to 10MB)',
+        },
       },
+      required: ['file'],
     },
   })
   @ApiResponse({
     status: 201,
-    description: 'Placeholder image uploaded and attached',
+    description: 'Image uploaded and attached to placeholder',
   })
   @ApiResponse({
     status: 400,
-    description:
-      'Invalid image format, file size exceeded, or invalid placeholder type',
+    description: 'Invalid image mime type or file too large',
   })
+  @ApiResponse({ status: 404, description: 'Placeholder or design not found' })
   async uploadPlaceholderImage(
     @Param('id') designId: string,
     @Param('placeholderId') placeholderId: string,
     @CurrentUser() user: User,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    if (!file) {
-      throw new BadRequestException('Image file is required.');
-    }
     return this.placeholdersService.uploadPlaceholderImage(
       designId,
       placeholderId,
@@ -129,7 +126,7 @@ export class DesignsPlaceholdersController {
 
   @Get(':id/placeholders/:placeholderId/image')
   @ApiOperation({
-    summary: 'Stream authenticated uploaded image for placeholder preview',
+    summary: 'Download/stream uploaded placeholder image file',
   })
   @ApiResponse({ status: 200, description: 'Image binary stream' })
   @ApiResponse({ status: 404, description: 'Image or placeholder not found' })
@@ -150,7 +147,7 @@ export class DesignsPlaceholdersController {
       'Content-Type': mimeType,
       'Content-Disposition': `inline; filename="${encodeURIComponent(fileName)}"`,
       'Content-Length': buffer.length.toString(),
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'public, max-age=86400',
     });
 
     res.send(buffer);
@@ -159,12 +156,10 @@ export class DesignsPlaceholdersController {
   @Delete(':id/placeholders/:placeholderId/value')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Clear value for a specific placeholder',
+    summary: 'Reset/clear custom content value for a placeholder',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Placeholder value cleared',
-  })
+  @ApiResponse({ status: 200, description: 'Placeholder value reset to null' })
+  @ApiResponse({ status: 404, description: 'Placeholder or design not found' })
   async clearPlaceholderValue(
     @Param('id') designId: string,
     @Param('placeholderId') placeholderId: string,
@@ -179,7 +174,7 @@ export class DesignsPlaceholdersController {
 
   @Patch(':id/sections/:sectionId/styles')
   @ApiOperation({
-    summary: 'Update visual color palette & styling for a layout section',
+    summary: 'Update visual color styles (background, text, primary, secondary) for a section',
   })
   @ApiResponse({
     status: 200,

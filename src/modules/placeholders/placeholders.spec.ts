@@ -5,17 +5,17 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import AdmZip from 'adm-zip';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { DesignPlaceholdersService } from './design-placeholders.service';
-import { DesignsService } from './designs.service';
-import { Design, DesignStatus } from './entities/design.entity';
+import { PlaceholdersService } from './placeholders.service';
+import { DesignsService } from '../designs/designs.service';
+import { Design, DesignStatus } from '../designs/entities/design.entity';
 import { User } from '../users/entities/user.entity';
 import { LocalFileStorageService } from '../file-storage/local-file-storage.service';
 import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
 import envConfig from '../../config/env.config';
 
-describe('DesignPlaceholdersService (Content Editor & Isolation Tests)', () => {
+describe('PlaceholdersService (Content Editor & Isolation Tests)', () => {
   let sequelize: Sequelize;
-  let placeholdersService: DesignPlaceholdersService;
+  let placeholdersService: PlaceholdersService;
   let designsService: DesignsService;
   let testUserA: User;
   let testUserB: User;
@@ -56,7 +56,7 @@ describe('DesignPlaceholdersService (Content Editor & Isolation Tests)', () => {
         }),
       ],
       providers: [
-        DesignPlaceholdersService,
+        PlaceholdersService,
         DesignsService,
         {
           provide: FILE_STORAGE_SERVICE,
@@ -69,8 +69,8 @@ describe('DesignPlaceholdersService (Content Editor & Isolation Tests)', () => {
       ],
     }).compile();
 
-    placeholdersService = moduleRef.get<DesignPlaceholdersService>(
-      DesignPlaceholdersService,
+    placeholdersService = moduleRef.get<PlaceholdersService>(
+      PlaceholdersService,
     );
     designsService = moduleRef.get<DesignsService>(DesignsService);
   });

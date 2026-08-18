@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { DesignsModule } from './modules/designs/designs.module';
 import { DesignProcessingModule } from './modules/design-processing/design-processing.module';
 import { DesignAnalysisModule } from './modules/design-analysis/design-analysis.module';
+import { PlaceholdersModule } from './modules/placeholders/placeholders.module';
 import { WebsiteGeneratorModule } from './modules/website-generator/website-generator.module';
 import { WebsitePreviewModule } from './modules/website-preview/website-preview.module';
 import { AppController } from './app.controller';
@@ -27,6 +28,7 @@ import { AppService } from './app.service';
     DesignsModule,
     DesignProcessingModule,
     DesignAnalysisModule,
+    PlaceholdersModule,
     WebsiteGeneratorModule,
     WebsitePreviewModule,
   ],

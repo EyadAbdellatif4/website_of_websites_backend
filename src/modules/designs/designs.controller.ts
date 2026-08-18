@@ -43,41 +43,21 @@ export class DesignsController {
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a design ZIP archive' })
+  @ApiOperation({ summary: 'Upload a design file (ZIP or SVG)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadDesignWithFileDto })
   @ApiResponse({
     status: 201,
-    description: 'ZIP uploaded and stored successfully',
+    description: 'Design file uploaded and stored successfully',
   })
-  @ApiResponse({ status: 400, description: 'Invalid ZIP file or parameters' })
+  @ApiResponse({ status: 400, description: 'Invalid file or parameters' })
   async uploadDesign(
     @CurrentUser() user: User,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadDesignDto,
   ): Promise<SafeDesignDto> {
     if (!file) {
-      throw new BadRequestException('ZIP file is required');
-    }
-    return this.designsService.uploadDesign(user, file, dto.name);
-  }
-
-  @Post()
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a design ZIP archive (alias)' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: UploadDesignWithFileDto })
-  @ApiResponse({
-    status: 201,
-    description: 'ZIP uploaded and stored successfully',
-  })
-  async createDesign(
-    @CurrentUser() user: User,
-    @UploadedFile() file: Express.Multer.File,
-    @Body() dto: UploadDesignDto,
-  ): Promise<SafeDesignDto> {
-    if (!file) {
-      throw new BadRequestException('ZIP file is required');
+      throw new BadRequestException('Design file is required');
     }
     return this.designsService.uploadDesign(user, file, dto.name);
   }

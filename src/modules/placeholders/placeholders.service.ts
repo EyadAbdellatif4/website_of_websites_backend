@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { imageSize } from 'image-size';
 import * as path from 'path';
-import { DesignsService } from './designs.service';
+import { DesignsService } from '../designs/designs.service';
 import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
 import { FileStorage } from '../file-storage/file-storage.interface';
 import {
@@ -57,7 +57,7 @@ const ALLOWED_IMAGE_MIMES = [
 const DEFAULT_MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 
 @Injectable()
-export class DesignPlaceholdersService {
+export class PlaceholdersService {
   constructor(
     private readonly designsService: DesignsService,
     @Inject(FILE_STORAGE_SERVICE)
@@ -181,14 +181,12 @@ export class DesignPlaceholdersService {
         }
 
         default: {
-          // Future / generic placeholder types
           validatedValue = rawValue;
           break;
         }
       }
     }
 
-    // Atomic update preserving all original metadata and sibling placeholders
     const updatedPlaceholder: StoredPlaceholderItem = {
       ...currentPlaceholder,
       value: validatedValue,

@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { DesignsModule } from '../designs/designs.module';
 import { DesignProcessingModule } from '../design-processing/design-processing.module';
 import { DesignAnalysisService } from './design-analysis.service';
+import { DesignAnalyzerController } from './design-analyzer.controller';
 import { DESIGN_ANALYZER_PROVIDER } from './interfaces/design-analyzer.interface';
 import { GeminiDesignAnalyzer } from './providers/gemini-design-analyzer.provider';
 import { MockDesignAnalyzer } from './providers/mock-design-analyzer.provider';
@@ -11,6 +12,7 @@ import { MockDesignAnalyzer } from './providers/mock-design-analyzer.provider';
     forwardRef(() => DesignsModule),
     forwardRef(() => DesignProcessingModule),
   ],
+  controllers: [DesignAnalyzerController],
   providers: [
     DesignAnalysisService,
     {
