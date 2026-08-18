@@ -2,17 +2,15 @@ import {
   Controller,
   Post,
   Param,
+  Body,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
+  BadRequestException,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiCookieAuth,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -20,10 +18,9 @@ import {
   DesignProcessingService,
   NormalizedDesignRepresentation,
 } from './design-processing.service';
+import { UploadDesignDto } from '../designs/dto/upload-design.dto';
+import { SafeDesignDto } from '../designs/designs.service';
 
-@ApiTags('Design Processing Pipeline')
-@ApiCookieAuth('access_token')
-@ApiBearerAuth()
 @Controller('designs')
 @UseGuards(JwtAuthGuard)
 export class DesignProcessingController {
@@ -31,25 +28,21 @@ export class DesignProcessingController {
     private readonly designProcessingService: DesignProcessingService,
   ) {}
 
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadDesign(
+    @CurrentUser() user: User,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadDesignDto,
+  ): Promise<SafeDesignDto> {
+    if (!file) {
+      throw new BadRequestException('Design file is required');
+    }
+    return this.designProcessingService.upload(user, file, dto?.name);
+  }
+
   @Post(':id/process')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary:
-      'Inspect and extract design assets into isolated processing directory',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Design extraction and asset inspection successful',
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Invalid or malicious archive (Zip Slip / size limit exceeded)',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Design is currently being processed',
-  })
   async processDesign(
     @Param('id') id: string,
     @CurrentUser() user: User,

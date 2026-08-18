@@ -1,18 +1,10 @@
 import {
   Injectable,
-  Inject,
-  BadRequestException,
   NotFoundException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { Design, DesignStatus } from './entities/design.entity';
-import { User } from '../users/entities/user.entity';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import { FileStorage } from '../file-storage/file-storage.interface';
-import { validateZipFile } from './utils/zip-validator.util';
+import { FileStorageService } from '../file-storage/file-storage.service';
 
 export interface SafeDesignDto {
   id: string;
@@ -26,28 +18,30 @@ export interface SafeDesignDto {
   updatedAt: Date;
 }
 
+export function toSafeDesignDto(design: Design): SafeDesignDto {
+  return {
+    id: design.id,
+    name: design.name,
+    fileName: design.file_name,
+    fileSize: Number(design.file_size),
+    status: design.status,
+    layoutData: design.layout_data,
+    placeholdersData: design.placeholders_data,
+    createdAt: design.created_at,
+    updatedAt: design.updated_at,
+  };
+}
+
 @Injectable()
 export class DesignsService {
   constructor(
     @InjectModel(Design)
     private readonly designModel: typeof Design,
-    @Inject(FILE_STORAGE_SERVICE)
-    private readonly fileStorage: FileStorage,
-    private readonly configService: ConfigService,
+    private readonly fileStorage: FileStorageService,
   ) {}
 
   toSafeDto(design: Design): SafeDesignDto {
-    return {
-      id: design.id,
-      name: design.name,
-      fileName: design.file_name,
-      fileSize: Number(design.file_size),
-      status: design.status,
-      layoutData: design.layout_data,
-      placeholdersData: design.placeholders_data,
-      createdAt: design.created_at,
-      updatedAt: design.updated_at,
-    };
+    return toSafeDesignDto(design);
   }
 
   async getDesignEntity(id: string, userId: string): Promise<Design> {
@@ -67,64 +61,6 @@ export class DesignsService {
     design.status = status;
     await design.save();
     return design;
-  }
-
-  async uploadDesign(
-    user: User,
-    file: Express.Multer.File,
-    name: string,
-  ): Promise<SafeDesignDto> {
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      throw new BadRequestException('Design name is required');
-    }
-
-    validateZipFile(file);
-
-    const maxSize = this.configService.get<number>(
-      'maxDesignZipSize',
-      52428800,
-    );
-    if (file.size > maxSize) {
-      throw new BadRequestException(
-        `File size (${file.size} bytes) exceeds maximum allowed limit of ${maxSize} bytes`,
-      );
-    }
-
-    const designId = crypto.randomUUID();
-    const storageKey = `designs/${user.id}/${designId}/original.zip`;
-
-    // 1. Store physical file first using FileStorage abstraction
-    await this.fileStorage.saveFile(storageKey, file.buffer);
-
-    // 2. Create database record; clean up storage file if DB creation fails
-    try {
-      const design = await this.designModel.create({
-        id: designId,
-        user_id: user.id,
-        name: name.trim(),
-        file_name: file.originalname,
-        storage_key: storageKey,
-        file_size: file.size,
-        status: DesignStatus.UPLOADED,
-        layout_data: null,
-        placeholders_data: null,
-      });
-
-      return this.toSafeDto(design);
-    } catch (dbErr) {
-      // Compensating action: clean up saved storage file so no orphaned file is left
-      try {
-        await this.fileStorage.deleteFile(storageKey);
-      } catch (cleanupErr) {
-        console.error(
-          `Failed to clean up file '${storageKey}' after DB failure:`,
-          cleanupErr,
-        );
-      }
-      throw new InternalServerErrorException(
-        `Failed to save design database record: ${dbErr instanceof Error ? dbErr.message : 'Unknown database error'}`,
-      );
-    }
   }
 
   async findAllForUser(userId: string): Promise<SafeDesignDto[]> {

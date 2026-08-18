@@ -1,20 +1,21 @@
 import {
   Injectable,
-  Inject,
   NotFoundException,
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
 import { ConfigService } from '@nestjs/config';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import { FileStorage } from '../file-storage/file-storage.interface';
-import { DesignsService } from '../designs/designs.service';
-import { DesignStatus } from '../designs/entities/design.entity';
+import * as crypto from 'crypto';
+import { FileStorageService } from '../file-storage/file-storage.service';
+import { DesignsService, SafeDesignDto, toSafeDesignDto } from '../designs/designs.service';
+import { Design, DesignStatus } from '../designs/entities/design.entity';
+import { User } from '../users/entities/user.entity';
+import { validateImportFile } from '../../common/utils/file-validation.util';
 import {
-  ZipProcessor,
-  ZipProcessingLimits,
+  extractZipEntries,
   ExtractedZipEntry,
-} from './processors/zip.processor';
+} from '../../common/utils/zip.util';
 import {
   SvgInspector,
   SvgInspectionMetadata,
@@ -55,23 +56,70 @@ export interface NormalizedDesignRepresentation {
 
 @Injectable()
 export class DesignProcessingService {
-  private readonly zipProcessor = new ZipProcessor();
   private readonly svgInspector = new SvgInspector();
   private readonly imageInspector = new ImageInspector();
   private readonly fontInspector = new FontInspector();
 
   // In-memory cache for normalized processing results
-  private readonly resultsCache = new Map<
-    string,
-    NormalizedDesignRepresentation
-  >();
+  private readonly resultsCache = new Map<string, NormalizedDesignRepresentation>();
 
   constructor(
-    @Inject(FILE_STORAGE_SERVICE)
-    private readonly fileStorage: FileStorage,
+    @InjectModel(Design)
+    private readonly designModel: typeof Design,
+    private readonly fileStorage: FileStorageService,
     private readonly designsService: DesignsService,
     private readonly configService: ConfigService,
   ) {}
+
+  async upload(
+    user: User,
+    file: Express.Multer.File,
+    name: string,
+  ): Promise<SafeDesignDto> {
+    if (!name?.trim()) {
+      throw new BadRequestException('Design name is required');
+    }
+
+    const maxSize = Number(
+      this.configService.get<number>('MAX_DESIGN_ZIP_SIZE', 52428800),
+    );
+    const validated = validateImportFile(file, { maxSizeBytes: maxSize });
+
+    const designId = crypto.randomUUID();
+    const storageKey = `designs/${user.id}/${designId}/original.zip`;
+
+    await this.fileStorage.saveFile(storageKey, validated.buffer);
+
+    const design = await this.designModel.create({
+      id: designId,
+      user_id: user.id,
+      name: name.trim(),
+      file_name: validated.sanitizedName,
+      storage_key: storageKey,
+      file_size: validated.size,
+      status: DesignStatus.UPLOADED,
+    });
+
+    return toSafeDesignDto(design);
+  }
+
+  private inspectEntry(entry: ExtractedZipEntry): NormalizedFileEntry {
+    let metadata: NormalizedFileEntry['metadata'] = {};
+    if (entry.type === 'svg') {
+      metadata = this.svgInspector.inspect(entry.buffer.toString('utf-8'));
+    } else if (entry.type === 'image') {
+      metadata = this.imageInspector.inspect(entry.buffer, entry.entryPath);
+    } else if (entry.type === 'font') {
+      metadata = this.fontInspector.inspect(entry.buffer, entry.entryPath);
+    }
+
+    return {
+      path: entry.entryPath,
+      type: entry.type,
+      size: entry.size,
+      metadata,
+    };
+  }
 
   async processDesign(
     designId: string,
@@ -83,95 +131,27 @@ export class DesignProcessingService {
       throw new ConflictException('Design processing is already in progress');
     }
 
-    // Mark status as PROCESSING
-    await this.designsService.updateStatus(
-      designId,
-      userId,
-      DesignStatus.PROCESSING,
-    );
+    design.status = DesignStatus.PROCESSING;
+    await design.save();
 
     try {
-      const { buffer } = await this.designsService.getDesignFileBuffer(
-        designId,
-        userId,
-      );
-
-      const limits: ZipProcessingLimits = {
-        maxZipEntries: this.configService.get<number>('maxZipEntries', 500),
-        maxZipUncompressedSize: this.configService.get<number>(
-          'maxZipUncompressedSize',
-          209715200,
-        ),
-        maxSingleExtractedFileSize: this.configService.get<number>(
-          'maxSingleExtractedFileSize',
-          52428800,
-        ),
-      };
-
+      const buffer = await this.fileStorage.getFile(design.storage_key);
       const canonicalExtractedDirKey = `designs/${userId}/${designId}/extracted`;
 
-      const isDirectSvg =
-        design.file_name.toLowerCase().endsWith('.svg') ||
-        buffer.slice(0, 100).toString('utf-8').includes('<svg');
+      const entries: ExtractedZipEntry[] = design.file_name.toLowerCase().endsWith('.svg')
+        ? [{ entryPath: 'design.svg', buffer, size: buffer.length, type: 'svg' }]
+        : extractZipEntries(buffer);
 
-      let entries: ExtractedZipEntry[] = [];
-
-      if (isDirectSvg) {
-        entries = [
-          {
-            entryPath: 'design.svg',
-            buffer,
-            size: buffer.length,
-            type: 'svg',
-          },
-        ];
-      } else {
-        // Safely extract ZIP entries in memory
-        entries = this.zipProcessor.process(
-          buffer,
-          canonicalExtractedDirKey,
-          limits,
-        );
-      }
-
-      const fileInventory: NormalizedFileEntry[] = [];
-      let svgCount = 0;
-      let imageCount = 0;
-      let fontCount = 0;
-      let otherCount = 0;
-
-      for (const entry of entries) {
-        const fileKey = `${canonicalExtractedDirKey}/${entry.entryPath}`;
-
-        // Save extracted file into storage under extracted path
-        await this.fileStorage.saveFile(fileKey, entry.buffer);
-
-        let metadata: NormalizedFileEntry['metadata'] = {};
-        let normalizedType: NormalizedFileEntry['type'] = 'other';
-
-        if (entry.type === 'svg') {
-          normalizedType = 'svg';
-          svgCount++;
-          metadata = this.svgInspector.inspect(entry.buffer.toString('utf-8'));
-        } else if (entry.type === 'image') {
-          normalizedType = 'image';
-          imageCount++;
-          metadata = this.imageInspector.inspect(entry.buffer, entry.entryPath);
-        } else if (entry.type === 'font') {
-          normalizedType = 'font';
-          fontCount++;
-          metadata = this.fontInspector.inspect(entry.buffer, entry.entryPath);
-        } else {
-          otherCount++;
-        }
-
-        fileInventory.push({
-          path: entry.entryPath,
-          type: normalizedType,
-          size: entry.size,
-          metadata,
-        });
-      }
+      // Save extracted files in parallel and inspect
+      const fileInventory = await Promise.all(
+        entries.map(async (entry) => {
+          await this.fileStorage.saveFile(
+            `${canonicalExtractedDirKey}/${entry.entryPath}`,
+            entry.buffer,
+          );
+          return this.inspectEntry(entry);
+        }),
+      );
 
       const representation: NormalizedDesignRepresentation = {
         designId,
@@ -180,30 +160,21 @@ export class DesignProcessingService {
         fileInventory,
         summary: {
           totalFiles: fileInventory.length,
-          svgCount,
-          imageCount,
-          fontCount,
-          otherCount,
+          svgCount: fileInventory.filter((f) => f.type === 'svg').length,
+          imageCount: fileInventory.filter((f) => f.type === 'image').length,
+          fontCount: fileInventory.filter((f) => f.type === 'font').length,
+          otherCount: fileInventory.filter((f) => f.type === 'other').length,
         },
       };
 
       this.resultsCache.set(designId, representation);
-
-      // Mark status as READY
-      await this.designsService.updateStatus(
-        designId,
-        userId,
-        DesignStatus.READY,
-      );
+      design.status = DesignStatus.READY;
+      await design.save();
 
       return representation;
     } catch (err) {
-      // Mark status as FAILED on error
-      await this.designsService.updateStatus(
-        designId,
-        userId,
-        DesignStatus.FAILED,
-      );
+      design.status = DesignStatus.FAILED;
+      await design.save();
       throw err;
     }
   }
