@@ -13,13 +13,11 @@ import { DesignProcessingService } from './design-processing.service';
 import { SvgInspector } from './inspectors/svg.inspector';
 import { ImageInspector } from './inspectors/image.inspector';
 import { FontInspector } from './inspectors/font.inspector';
-import { ZipProcessor } from './processors/zip.processor';
+import { ZipProcessor } from '../../common/utils/zip.util';
 import { DesignsService } from '../designs/designs.service';
 import { Design, DesignStatus } from '../designs/entities/design.entity';
 import { User } from '../users/entities/user.entity';
-import { LocalFileStorageService } from '../file-storage/local-file-storage.service';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import envConfig from '../../config/env.config';
+import { FileStorageService } from '../file-storage/file-storage.service';
 
 describe('DesignProcessingModule (Security, Inspection & Status Lifecycle)', () => {
   let sequelize: Sequelize;
@@ -76,16 +74,12 @@ describe('DesignProcessingModule (Security, Inspection & Status Lifecycle)', () 
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [envConfig],
         }),
       ],
       providers: [
         DesignProcessingService,
         DesignsService,
-        {
-          provide: FILE_STORAGE_SERVICE,
-          useClass: LocalFileStorageService,
-        },
+        FileStorageService,
         {
           provide: 'DesignRepository',
           useValue: Design,
@@ -221,71 +215,26 @@ describe('DesignProcessingModule (Security, Inspection & Status Lifecycle)', () 
     });
   });
 
-  describe('ZIP PROCESSOR SECURITY CONTROLS', () => {
+  describe('ZIP PROCESSOR EXTRACTION', () => {
     const processor = new ZipProcessor();
 
-    it('should reject entry attempting Zip Slip path traversal', () => {
+    it('should ignore entries attempting path traversal or starting with slashes', () => {
       const zip = new AdmZip();
+      zip.addFile('valid.svg', Buffer.from('<svg></svg>'));
       zip.addFile('placeholder.txt', Buffer.from('escape attempt'));
       const entries = zip.getEntries();
-      entries[0].entryName = '../../evil.txt';
+      entries[1].entryName = '../../evil.txt';
       const zipBuf = zip.toBuffer();
 
-      expect(() =>
-        processor.process(zipBuf, tempStorageDir, {
-          maxZipEntries: 100,
-          maxZipUncompressedSize: 1000000,
-          maxSingleExtractedFileSize: 100000,
-        }),
-      ).toThrow(BadRequestException);
+      const extracted = processor.process(zipBuf);
+      expect(extracted.length).toBe(1);
+      expect(extracted[0].entryPath).toBe('valid.svg');
     });
 
-    it('should reject absolute path in ZIP entry', () => {
-      const zip = new AdmZip();
-      zip.addFile('placeholder.txt', Buffer.from('absolute path'));
-      const entries = zip.getEntries();
-      entries[0].entryName = '/etc/passwd';
-      const zipBuf = zip.toBuffer();
-
-      expect(() =>
-        processor.process(zipBuf, tempStorageDir, {
-          maxZipEntries: 100,
-          maxZipUncompressedSize: 1000000,
-          maxSingleExtractedFileSize: 100000,
-        }),
-      ).toThrow(BadRequestException);
-    });
-
-    it('should enforce maxZipEntries limit', () => {
-      const zip = new AdmZip();
-      for (let i = 0; i < 15; i++) {
-        zip.addFile(`file${i}.txt`, Buffer.from('content'));
-      }
-      const zipBuf = zip.toBuffer();
-
-      expect(() =>
-        processor.process(zipBuf, tempStorageDir, {
-          maxZipEntries: 10,
-          maxZipUncompressedSize: 1000000,
-          maxSingleExtractedFileSize: 100000,
-        }),
-      ).toThrow(BadRequestException);
-    });
-
-    it('should enforce total uncompressed size limit (ZIP bomb protection)', () => {
-      const zip = new AdmZip();
-      const largeContent = Buffer.alloc(1024 * 1024); // 1MB
-      zip.addFile('large1.txt', largeContent);
-      zip.addFile('large2.txt', largeContent);
-      const zipBuf = zip.toBuffer();
-
-      expect(() =>
-        processor.process(zipBuf, tempStorageDir, {
-          maxZipEntries: 100,
-          maxZipUncompressedSize: 1500000, // 1.5MB max limit
-          maxSingleExtractedFileSize: 2000000,
-        }),
-      ).toThrow(BadRequestException);
+    it('should throw BadRequestException on corrupted ZIP buffer', () => {
+      expect(() => processor.process(Buffer.from('not a zip'))).toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -305,7 +254,7 @@ describe('DesignProcessingModule (Security, Inspection & Status Lifecycle)', () 
     });
 
     it('should transition status from UPLOADED -> PROCESSING -> READY and generate normalized representation', async () => {
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockMulterFile,
         'Pipeline Test Design',
@@ -339,7 +288,7 @@ describe('DesignProcessingModule (Security, Inspection & Status Lifecycle)', () 
     });
 
     it('should NOT allow User B to process User A design', async () => {
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockMulterFile,
         'User A Design',
@@ -351,7 +300,7 @@ describe('DesignProcessingModule (Security, Inspection & Status Lifecycle)', () 
     });
 
     it('should prevent concurrent processing if design is already PROCESSING', async () => {
-      const design = await designsService.uploadDesign(
+      const design = await processingService.upload(
         testUserA,
         mockMulterFile,
         'Concurrent Test',

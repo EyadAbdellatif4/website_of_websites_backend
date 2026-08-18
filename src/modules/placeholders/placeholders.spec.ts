@@ -9,14 +9,14 @@ import { PlaceholdersService } from './placeholders.service';
 import { DesignsService } from '../designs/designs.service';
 import { Design, DesignStatus } from '../designs/entities/design.entity';
 import { User } from '../users/entities/user.entity';
-import { LocalFileStorageService } from '../file-storage/local-file-storage.service';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import envConfig from '../../config/env.config';
+import { FileStorageService } from '../file-storage/file-storage.service';
+import { DesignProcessingService } from '../design-processing/design-processing.service';
 
 describe('PlaceholdersService (Content Editor & Isolation Tests)', () => {
   let sequelize: Sequelize;
   let placeholdersService: PlaceholdersService;
   let designsService: DesignsService;
+  let processingService: DesignProcessingService;
   let testUserA: User;
   let testUserB: User;
   let sampleDesign: Design;
@@ -52,16 +52,13 @@ describe('PlaceholdersService (Content Editor & Isolation Tests)', () => {
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
-          load: [envConfig],
         }),
       ],
       providers: [
         PlaceholdersService,
         DesignsService,
-        {
-          provide: FILE_STORAGE_SERVICE,
-          useClass: LocalFileStorageService,
-        },
+        DesignProcessingService,
+        FileStorageService,
         {
           provide: 'DesignRepository',
           useValue: Design,
@@ -73,6 +70,7 @@ describe('PlaceholdersService (Content Editor & Isolation Tests)', () => {
       PlaceholdersService,
     );
     designsService = moduleRef.get<DesignsService>(DesignsService);
+    processingService = moduleRef.get<DesignProcessingService>(DesignProcessingService);
   });
 
   afterAll(async () => {
@@ -108,7 +106,7 @@ describe('PlaceholdersService (Content Editor & Isolation Tests)', () => {
       size: zipBuffer.length,
     } as unknown as Express.Multer.File;
 
-    const safeDto = await designsService.uploadDesign(
+    const safeDto = await processingService.upload(
       testUserA,
       mockFile,
       'Placeholders Test Design',
