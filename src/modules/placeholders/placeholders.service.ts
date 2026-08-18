@@ -1,6 +1,5 @@
 import {
   Injectable,
-  Inject,
   BadRequestException,
   NotFoundException,
   InternalServerErrorException,
@@ -9,8 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { imageSize } from 'image-size';
 import * as path from 'path';
 import { DesignsService } from '../designs/designs.service';
-import { FILE_STORAGE_SERVICE } from '../file-storage/storage.constants';
-import { FileStorage } from '../file-storage/file-storage.interface';
+import { FileStorageService } from '../file-storage/file-storage.service';
 import {
   isSafeUrl,
   MAX_TEXT_PLACEHOLDER_LENGTH,
@@ -60,8 +58,7 @@ const DEFAULT_MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 export class PlaceholdersService {
   constructor(
     private readonly designsService: DesignsService,
-    @Inject(FILE_STORAGE_SERVICE)
-    private readonly fileStorage: FileStorage,
+    private readonly fileStorage: FileStorageService,
     private readonly configService: ConfigService,
   ) {}
 

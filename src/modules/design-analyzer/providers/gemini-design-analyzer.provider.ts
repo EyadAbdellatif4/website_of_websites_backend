@@ -17,10 +17,10 @@ export class GeminiDesignAnalyzer implements DesignAnalyzer {
 
   async analyze(input: DesignAnalyzerInput): Promise<AnalysisResult> {
     const apiKey =
-      this.configService.get<string>('gemini.apiKey') ||
+      this.configService.get<string>('GEMINI_API_KEY') ||
       process.env.GEMINI_API_KEY;
     const modelName =
-      this.configService.get<string>('gemini.model') ||
+      this.configService.get<string>('GEMINI_MODEL') ||
       process.env.GEMINI_MODEL ||
       'gemini-2.5-flash';
 

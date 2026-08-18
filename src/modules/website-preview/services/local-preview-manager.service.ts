@@ -83,7 +83,7 @@ export class LocalPreviewManagerService
 
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(port, '0.0.0.0', () => {
+        server.listen(port, '127.0.0.1', () => {
           resolve();
         });
       });

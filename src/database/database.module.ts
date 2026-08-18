@@ -11,12 +11,12 @@ import { Design } from '../modules/designs/entities/design.entity';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         dialect: 'postgres',
-        host: configService.get<string>('database.host', 'localhost'),
-        port: configService.get<number>('database.port', 5432),
-        username: configService.get<string>('database.username', 'postgres'),
-        password: configService.get<string>('database.password', '1q2w3e4r5t'),
+        host: configService.get<string>('DB_HOST', 'localhost'),
+        port: Number(configService.get<number>('DB_PORT', 5432)),
+        username: configService.get<string>('DB_USERNAME', 'postgres'),
+        password: configService.get<string>('DB_PASSWORD', '1q2w3e4r5t'),
         database: configService.get<string>(
-          'database.name',
+          'DB_NAME',
           'website_of_websites',
         ),
         models: [User, Design],
